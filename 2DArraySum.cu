@@ -5,24 +5,24 @@
 
 #include <math.h>
 
-#define M 1024
-#define N 1024
+#define M 512
+#define N 512
 
-__global__ void add(float **A, float **B, float **C)
+__global__ void add(float *A, float *B, float *C)
 {
     int col = blockDim.x * blockIdx.x + threadIdx.x;
     int row = blockDim.y * blockIdx.y + threadIdx.y;
 
     if (col < N && row < M)
-        C[row][col] = A[row][col] + B[row][col];
+        C[row * N + col] = A[row * N + col] + B[row * N + col];
 }
 
-__global__ void singleThreadVecAdd(float **A, float **B, float **C)
+__global__ void singleThreadVecAdd(float *A, float *B, float *C)
 {
     for (int i = 0; i < M; ++i)
     {
         for (int j = 0; j < N; ++j)
-            C[i][j] = A[i][j] + B[i][j];
+            C[i * N + j] = A[i * N + j] + B[i * N + j];
     }
 }
 
@@ -30,22 +30,25 @@ int main()
 {
     printf("\n\nProgram to perform Vector Addition in CUDA\n\n");
 
-    float **A, **B, **C;
+    float *A, *B, *C;
     float host_A[M][N], host_B[M][N], host_C[M][N];
 
     // generate random floating numbers for input
     printf("\nGenerating %d floating-point numbers for the input arrays....\n", N * M);
-
-    for (int i = 0; i < M; ++i)
+    int i,j;
+    for (i = 0; i < M; ++i)
     {
-        for (int j = 0; j < N; ++j)
+        for (j = 0; j < N; ++j)
             host_A[i][j] = sin(i) + sin(j);
+//            host_A[i][j] = 1.0;
+
+
     }
 
-    for (int i = 0; i < M; ++i)
+    for (i = 0; i < M; ++i)
     {
-        for (int j = 0; j < N; ++j)
-            host_B[i][j] = cos(i) + cos(j);
+        for (j = 0; j < N; ++j)
+            host_B[i][j] = 1.0;
     }
 
     printf("\nAllocating memory on the GPU...\n\n");
@@ -63,9 +66,9 @@ int main()
     // dimensions of thread block + kernel launch
     dim3 blockDim(16, 16, 1);
 
-    dim3 gridDim(ceil((float)(M) / blockDim.x), ceil((float)(N) / blockDim.y), 1);
+    dim3 gridDim((int)ceil((float)(M) / blockDim.x),(int) ceil((float)(N) / blockDim.y), 1);
 
-    // printf("\n\nCalling the kernel with %d Blocks and %d threads in each block\n", gridDim, blockDim);
+    printf("\n\nCalling the kernel with %d Blocks and %d threads in each block\n", gridDim, blockDim);
 
     // timing the GPU kernel
     double t1 = clock();
