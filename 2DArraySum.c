@@ -17,7 +17,7 @@ __global__ void add(float **A, float **B, float **C)
         C[row][col] = A[row][col] + B[row][col];
 }
 
-__global__ void singleThreadVecAdd(float A[M][N], float B[M][N], float C[M][N])
+__global__ void singleThreadVecAdd(float **A, float **B, float **C)
 {
     for (int i = 0; i < M; ++i)
     {
