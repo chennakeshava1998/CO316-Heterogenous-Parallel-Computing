@@ -14,7 +14,7 @@ __global__ void add(float A[M][N], float B[M][N], float C[M][N])
     int row = blockDim.y * blockIdx.y + threadIdx.y;
 
     if (col < N && row < M)
-        C[row * N + col] = A[row * N + col] + B[row * N + col];
+        C[row][col] = A[row][col] + B[row][col];
 }
 
 __global__ void singleThreadVecAdd(float A[M][N], float B[M][N], float C[M][N])
