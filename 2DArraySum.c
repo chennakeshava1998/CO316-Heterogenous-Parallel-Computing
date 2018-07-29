@@ -8,21 +8,21 @@
 #define M 1024
 #define N 1024
 
-__global__ void add(float **A, float **B, float **C)
+__global__ void add(float *A, float *B, float *C)
 {
     int col = blockDim.x * blockIdx.x + threadIdx.x;
     int row = blockDim.y * blockIdx.y + threadIdx.y;
 
     if (col < N && row < M)
-        C[row][col] = A[row][col] + B[row][col];
+        C[row * N + col] = A[row * N + col] + B[row * N + col];
 }
 
-__global__ void singleThreadVecAdd(float **A, float **B, float **C)
+__global__ void singleThreadVecAdd(float *A, float *B, float *C)
 {
     for (int i = 0; i < M; ++i)
     {
         for (int j = 0; j < N; ++j)
-            C[i][j] = A[i][j] + B[i][j];
+            C[i * N + j] = A[i * N + j] + B[i * N + j];
     }
 }
 
@@ -30,7 +30,7 @@ int main()
 {
     printf("\n\nProgram to perform Vector Addition in CUDA\n\n");
 
-    float **A, **B, **C;
+    float *A, *B, *C;
     float host_A[M][N], host_B[M][N], host_C[M][N];
 
     // generate random floating numbers for input
