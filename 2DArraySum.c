@@ -30,7 +30,7 @@ int main()
 {
     printf("\n\nProgram to perform Vector Addition in CUDA\n\n");
 
-    float *A, *B, *C;
+    float *A[N], *B[N], *C[N];
     float host_A[M][N], host_B[M][N], host_C[M][N];
 
     // generate random floating numbers for input
@@ -39,13 +39,13 @@ int main()
     for (int i = 0; i < M; ++i)
     {
         for (int j = 0; j < N; ++j)
-            host_A[i * N + j] = sin(i) + sin(j);
+            host_A[i][j] = sin(i) + sin(j);
     }
 
     for (int i = 0; i < M; ++i)
     {
         for (int j = 0; j < N; ++j)
-            host_B[i * N + j] = cos(i) + cos(j);
+            host_B[i][j] = cos(i) + cos(j);
     }
 
     printf("\nAllocating memory on the GPU...\n\n");
@@ -65,7 +65,7 @@ int main()
 
     dim3 gridDim(ceil((float)(M) / 1024), ceil((float)(N) / 1024), 1);
 
-    printf("\n\nCalling the kernel with %d Blocks and %d threads in each block\n", gridDim, blockDim);
+    // printf("\n\nCalling the kernel with %d Blocks and %d threads in each block\n", gridDim, blockDim);
 
     // timing the GPU kernel
     double t1 = clock();
