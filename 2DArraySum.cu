@@ -6,7 +6,7 @@
 #include <math.h>
 
 #define M 1024
-#define N 4096
+#define N 1024
 
 __global__ void add(float **A, float **B, float **C)
 {
@@ -61,9 +61,9 @@ int main()
     cudaMemcpy(B, host_B, M * N * sizeof(float), cudaMemcpyHostToDevice);
 
     // dimensions of thread block + kernel launch
-    int blockDim = 1024;
+    dim3 blockDim(16, 16, 1);
 
-    dim3 gridDim(ceil((float)(M) / 1024), ceil((float)(N) / 1024), 1);
+    dim3 gridDim(ceil((float)(M) / blockDim.x), ceil((float)(N) / blockDim.y), 1);
 
     // printf("\n\nCalling the kernel with %d Blocks and %d threads in each block\n", gridDim, blockDim);
 
@@ -74,7 +74,7 @@ int main()
     cudaDeviceSynchronize();
     double t2 = clock();
 
-    printf("\nNumber of threads per block: %d\n", blockDim);
+    printf("\nNumber of threads per block: %d\n", blockDim.x * blockDim.y);
     printf("\nDimesions of the grid: %d BY %d BY %d\n", gridDim.x, gridDim.y, gridDim.z);
     printf("\nTime taken to add %d elements = %lf\n\n", M * N, (t2 - t1) / CLOCKS_PER_SEC);
 
