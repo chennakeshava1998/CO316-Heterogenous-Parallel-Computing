@@ -62,7 +62,7 @@ int main()
     cudaDeviceSynchronize();
     double t2 = clock();
 
-    printf("\nTime taken to add %d elements = %lf\n\n", N, (t2 - t1) / CLOCKS_PER_SECOND);
+    printf("\nTime taken to add %d elements = %lf\n\n", N, (t2 - t1) / CLOCKS_PER_SEC);
 
     // copy back to host
     printf("\n\nCalculation completed on the GPU. Fetching the answer back from the GPU's global memory\n");
@@ -77,7 +77,7 @@ int main()
     // copy back to host
     cudaMemcpy(host_C, C, N * sizeof(float), cudaMemcpyDeviceToHost);
 
-    printf("\nTime taken to perform %d additions with single thread and One block: %lf\n", N, (t2 - t1) / CLOCKS_PER_SECOND);
+    printf("\nTime taken to perform %d additions with single thread and One block: %lf\n", N, (t2 - t1) / CLOCKS_PER_SEC);
 
     // free the malloc'ed memory
     printf("\n\nFree'ing the malloc'ed memory on the GPU\n");

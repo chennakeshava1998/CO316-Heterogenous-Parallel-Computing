@@ -76,7 +76,7 @@ int main()
 
     printf("\nNumber of threads per block: %d\n", blockDim);
     printf("\nDimesions of the grid: %d BY %d BY %d\n", gridDim.x, gridDim.y, gridDim.z);
-    printf("\nTime taken to add %d elements = %lf\n\n", M * N, (t2 - t1) / CLOCKS_PER_SECOND);
+    printf("\nTime taken to add %d elements = %lf\n\n", M * N, (t2 - t1) / CLOCKS_PER_SEC);
 
     // copy back to host
     printf("\n\nCalculation completed on the GPU. Fetching the answer back from the GPU's global memory\n");
@@ -91,7 +91,7 @@ int main()
     // copy back to host
     cudaMemcpy(host_C, C, M * N * sizeof(float), cudaMemcpyDeviceToHost);
 
-    printf("\nTime taken to perform %d additions with single thread and One block: %lf\n", M * N, (t2 - t1) / CLOCKS_PER_SECOND);
+    printf("\nTime taken to perform %d additions with single thread and One block: %lf\n", M * N, (t2 - t1) / CLOCKS_PER_SEC);
 
     // free the malloc'ed memory
     printf("\n\nFree'ing the malloc'ed memory on the GPU\n");
