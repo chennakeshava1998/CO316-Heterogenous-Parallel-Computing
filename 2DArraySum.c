@@ -8,7 +8,7 @@
 #define M 1024
 #define N 4096
 
-__global__ void add(float A[M][N], float B[M][N], float C[M][N])
+__global__ void add(float **A, float **B, float **C)
 {
     int col = blockDim.x * blockIdx.x + threadIdx.x;
     int row = blockDim.y * blockIdx.y + threadIdx.y;
@@ -30,7 +30,7 @@ int main()
 {
     printf("\n\nProgram to perform Vector Addition in CUDA\n\n");
 
-    float *A[N], *B[N], *C[N];
+    float **A, **B, **C;
     float host_A[M][N], host_B[M][N], host_C[M][N];
 
     // generate random floating numbers for input
