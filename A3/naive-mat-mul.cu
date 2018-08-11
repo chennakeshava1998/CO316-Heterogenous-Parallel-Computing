@@ -76,7 +76,7 @@ bool compare(int A[M][M], int B[M][M], double accuracy)
 
 int main()
 {
-    printf("\n\nProgram to perform Vector Addition in CUDA\n\n");
+    printf("\n\nProgram to perform Matrix Multiplication in CUDA\n\n");
 
     int *A, *B, *C;
     int host_A[M][N], host_B[N][M], host_C[M][M], CPUMatMulAns[M][M];
