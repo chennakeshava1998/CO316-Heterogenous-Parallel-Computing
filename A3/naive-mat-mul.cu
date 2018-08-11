@@ -23,15 +23,16 @@ __global__ void matMul(int *A, int *B, int *C)
         long long prod_val = 0;
         for (int k = 0; k < N; ++k)
             prod_val += (A[row * N + k] + B[k * N + col]);
+	
+	C[row * N + col] = prod_val;
     }
-    C[row * N + col] = prod_val;
 }
 
 __global__ void singleThreadVecMul(int *A, int *B, int *C)
 {
-    for (int i = 0; i < M; ++i)
+    for (int row = 0; row < M; ++row)
     {
-        for (int j = 0; j < M; ++j)
+        for (int col = 0; col < M; ++col)
         {
             long long prod_val = 0;
             for (int k = 0; k < N; ++k)
@@ -81,18 +82,18 @@ int main()
 
     dim3 gridDim((int)ceil((float)(M) / blockDim.x), (float)ceil((int)(N) / blockDim.y), 1);
 
-    printf("\n\nCalling the kernel with %d Blocks and %d threads in each block\n", gridDim, blockDim);
+    printf("\n\nCalling the kernel with %d Blocks and %d threads in each block\n", gridDim.x * gridDim.y, blockDim.x * blockDim.y);
 
     // timing the GPU kernel
     double t1 = clock();
 
-    add<<<gridDim, blockDim>>>(A, B, C);
+    matMul<<<gridDim, blockDim>>>(A, B, C);
     cudaDeviceSynchronize();
     double t2 = clock();
 
     printf("\nNumber of threads per block: %d\n", blockDim.x * blockDim.y);
     printf("\nDimesions of the grid: %d BY %d BY %d\n", gridDim.x, gridDim.y, gridDim.z);
-    printf("\nTotal Time taken for %d operations = %lf\n\n", M * M * N, (t2 - t1) / CLOCKS_PER_SEC);
+    printf("\nTotal Time taken for %ld operations = %lf\n\n", M * M * N, (t2 - t1) / CLOCKS_PER_SEC);
 
     // copy back to host
     printf("\n\nCalculation completed on the GPU. Fetching the answer back from the GPU's global memory\n");
@@ -107,7 +108,7 @@ int main()
     // copy back to host
     cudaMemcpy(host_C, C, M * M * sizeof(int), cudaMemcpyDeviceToHost);
 
-    printf("\nTime taken to perform %d additions with single thread and One block: %lf\n", M * M * N, (t2 - t1) / CLOCKS_PER_SEC);
+    printf("\nTime taken to perform %ld additions with single thread and One block: %lf\n", M * M * N, (t2 - t1) / CLOCKS_PER_SEC);
 
     // free the malloc'ed memory
     printf("\n\nFree'ing the malloc'ed memory on the GPU\n");
