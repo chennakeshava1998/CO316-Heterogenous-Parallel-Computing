@@ -8,7 +8,7 @@
 #define M 512
 #define N 512
 
-__global__ void add(float *A, float *B, float *C)
+__global__ void add(int *A, int *B, int *C)
 {
     int col = blockDim.x * blockIdx.x + threadIdx.x;
     int row = blockDim.y * blockIdx.y + threadIdx.y;
@@ -17,7 +17,7 @@ __global__ void add(float *A, float *B, float *C)
         C[row * N + col] = A[row * N + col] + B[row * N + col];
 }
 
-__global__ void singleThreadVecAdd(float *A, float *B, float *C)
+__global__ void singleThreadVecAdd(int *A, int *B, int *C)
 {
     for (int i = 0; i < M; ++i)
     {
@@ -30,11 +30,11 @@ int main()
 {
     printf("\n\nProgram to perform Vector Addition in CUDA\n\n");
 
-    float *A, *B, *C;
-    float host_A[M][N], host_B[M][N], host_C[M][N];
+    int *A, *B, *C;
+    int host_A[M][N], host_B[M][N], host_C[M][N];
 
-    // generate random floating numbers for input
-    printf("\nGenerating %d floating-point numbers for the input arrays....\n", N * M);
+    // generate random int numbers for input
+    printf("\nGenerating %d int numbers for the input arrays....\n", N * M);
     int i,j;
     for (i = 0; i < M; ++i)
     {
@@ -53,20 +53,20 @@ int main()
 
     printf("\nAllocating memory on the GPU...\n\n");
     // allocate space on device
-    cudaMalloc((void **)&A, M * N * sizeof(float));
-    cudaMalloc((void **)&B, M * N * sizeof(float));
-    cudaMalloc((void **)&C, M * N * sizeof(float));
+    cudaMalloc((void **)&A, M * N * sizeof(int));
+    cudaMalloc((void **)&B, M * N * sizeof(int));
+    cudaMalloc((void **)&C, M * N * sizeof(int));
 
     // memory transfer from host to device
     printf("\nTransferring data from host to device for computations...\n\n");
 
-    cudaMemcpy(A, host_A, M * N * sizeof(float), cudaMemcpyHostToDevice);
-    cudaMemcpy(B, host_B, M * N * sizeof(float), cudaMemcpyHostToDevice);
+    cudaMemcpy(A, host_A, M * N * sizeof(int), cudaMemcpyHostToDevice);
+    cudaMemcpy(B, host_B, M * N * sizeof(int), cudaMemcpyHostToDevice);
 
     // dimensions of thread block + kernel launch
     dim3 blockDim(16, 16, 1);
 
-    dim3 gridDim((int)ceil((float)(M) / blockDim.x),(int) ceil((float)(N) / blockDim.y), 1);
+    dim3 gridDim((int)ceil((float)(M) / blockDim.x),(float) ceil((int)(N) / blockDim.y), 1);
 
     printf("\n\nCalling the kernel with %d Blocks and %d threads in each block\n", gridDim, blockDim);
 
@@ -83,7 +83,7 @@ int main()
 
     // copy back to host
     printf("\n\nCalculation completed on the GPU. Fetching the answer back from the GPU's global memory\n");
-    cudaMemcpy(host_C, C, M * N * sizeof(float), cudaMemcpyDeviceToHost);
+    cudaMemcpy(host_C, C, M * N * sizeof(int), cudaMemcpyDeviceToHost);
 
     // Calculating the time required for a single thread, within a single block
     t1 = clock();
@@ -92,7 +92,7 @@ int main()
     t2 = clock();
 
     // copy back to host
-    cudaMemcpy(host_C, C, M * N * sizeof(float), cudaMemcpyDeviceToHost);
+    cudaMemcpy(host_C, C, M * N * sizeof(int), cudaMemcpyDeviceToHost);
 
     printf("\nTime taken to perform %d additions with single thread and One block: %lf\n", M * N, (t2 - t1) / CLOCKS_PER_SEC);
 
