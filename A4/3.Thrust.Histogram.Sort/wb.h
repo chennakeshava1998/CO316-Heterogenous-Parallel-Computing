@@ -11,288 +11,38 @@
 // C++
 #include <algorithm>
 #include <cassert>
-#include <cerrno>
 #include <cmath>
 #include <cstdlib>
-#include <cstring>
 #include <fstream>
 #include <iostream>
 #include <iomanip>
 #include <list>
 #include <sstream>
-#include <string>
+#include <cstring>
 #include <vector>
 
 // CUDA
-#if defined(__CUDACC__)
-    #include <cuda.h>
-    #include <cuda_runtime.h>
-#else
-// OpenCL
-    #if defined(__APPLE__)
-        #include <OpenCL/cl.h>
-    #else
-        #include <CL/cl.h>
-    #endif
-#endif
-
-////
-// Macros
-////
-
-#ifndef NDEBUG
-    #define wbAssert(condition, message)                                                                  \
-        do                                                                                                \
-        {                                                                                                 \
-            if (!(condition))                                                                             \
-            {                                                                                             \
-                std::cerr << "Assertion failed: (" #condition "), function " << __FUNCTION__ << ", file " \
-                          << __FILE__  << ", line " << __LINE__ << ": " << message << std::endl;          \
-                std::exit(EXIT_FAILURE);                                                                  \
-            }                                                                                             \
-        } while (0)
-#else
-    #define wbAssert(condition, message)
-#endif
-
-////
-// Constants
-////
-
-namespace wbInternal
-{
-    // Maximum number of errors to display in wbSolution()
-    const int kErrorReportLimit = 10;
-
-    // For further information, see the PPM image format documentation at http://netpbm.sourceforge.net
-    const int kImageChannels = 3;
-    const int kImageColorLimit = 255;
-} // namespace wbInternal
-
-////
-// Supporting functions
-////
-
-namespace wbInternal
-{
-#if defined(_WIN32)
-    std::string wbStrerror(int errnum)
-    {
-        std::string str;
-        char buffer[1024];
-
-        if (errnum)
-        {
-            (void) strerror_s(buffer, sizeof(buffer), errnum);
-            str = buffer;
-        }
-
-        return str;
-    }
-#elif (_POSIX_C_SOURCE >= 200112L || _XOPEN_SOURCE >= 600 || __APPLE__) && ! _GNU_SOURCE
-    std::string wbStrerror(int errnum)
-    {
-        std::string str;
-        char buffer[1024];
-
-        if (errnum)
-        {
-            (void) strerror_r(errnum, buffer, sizeof(buffer));
-            str = buffer;
-        }
-
-        return str;
-    }
-#elif defined(_GNU_SOURCE)
-    std::string wbStrerror(int errnum)
-    {
-        std::string str;
-        char buffer[1024];
-
-        if (errnum)
-        {
-            str = strerror_r(errnum, buffer, sizeof(buffer));
-        }
-
-        return str;
-    }
-#else
-    std::string wbStrerror(int errnum)
-    {
-        std::string str;
-
-        if (errnum)
-        {
-            str = strerror(errnum);
-        }
-
-        return str;
-    }
-#endif
-} // namespace wbInternal
-
-////
-// OpenCL
-////
-
-#if !defined(__CUDACC__)
-#define wbOpenCL_ERROR(error) \
-    case error:               \
-        return #error
-
-const char* wbOpenCLGetErrorString(cl_int error)
-{
-    switch (error)
-    {
-/*
- * OpenCL runtime and JIT compile errors
- */
-#if defined(CL_VERSION_1_0)
-        wbOpenCL_ERROR(CL_SUCCESS);
-        wbOpenCL_ERROR(CL_DEVICE_NOT_FOUND);
-        wbOpenCL_ERROR(CL_DEVICE_NOT_AVAILABLE);
-        wbOpenCL_ERROR(CL_COMPILER_NOT_AVAILABLE);
-        wbOpenCL_ERROR(CL_MEM_OBJECT_ALLOCATION_FAILURE);
-        wbOpenCL_ERROR(CL_OUT_OF_RESOURCES);
-        wbOpenCL_ERROR(CL_OUT_OF_HOST_MEMORY);
-        wbOpenCL_ERROR(CL_PROFILING_INFO_NOT_AVAILABLE);
-        wbOpenCL_ERROR(CL_MEM_COPY_OVERLAP);
-        wbOpenCL_ERROR(CL_IMAGE_FORMAT_MISMATCH);
-        wbOpenCL_ERROR(CL_IMAGE_FORMAT_NOT_SUPPORTED);
-        wbOpenCL_ERROR(CL_BUILD_PROGRAM_FAILURE);
-        wbOpenCL_ERROR(CL_MAP_FAILURE);
-#endif
-#if defined(CL_VERSION_1_1)
-        wbOpenCL_ERROR(CL_MISALIGNED_SUB_BUFFER_OFFSET);
-        wbOpenCL_ERROR(CL_EXEC_STATUS_ERROR_FOR_EVENTS_IN_WAIT_LIST);
-#endif
-#if defined(CL_VERSION_1_2)
-        wbOpenCL_ERROR(CL_COMPILE_PROGRAM_FAILURE);
-        wbOpenCL_ERROR(CL_LINKER_NOT_AVAILABLE);
-        wbOpenCL_ERROR(CL_LINK_PROGRAM_FAILURE);
-        wbOpenCL_ERROR(CL_DEVICE_PARTITION_FAILED);
-        wbOpenCL_ERROR(CL_KERNEL_ARG_INFO_NOT_AVAILABLE);
-#endif
-/*
- * OpenCL compile-time errors
- */
-#if defined(CL_VERSION_1_0)
-        wbOpenCL_ERROR(CL_INVALID_VALUE);
-        wbOpenCL_ERROR(CL_INVALID_DEVICE_TYPE);
-        wbOpenCL_ERROR(CL_INVALID_PLATFORM);
-        wbOpenCL_ERROR(CL_INVALID_DEVICE);
-        wbOpenCL_ERROR(CL_INVALID_CONTEXT);
-        wbOpenCL_ERROR(CL_INVALID_QUEUE_PROPERTIES);
-        wbOpenCL_ERROR(CL_INVALID_COMMAND_QUEUE);
-        wbOpenCL_ERROR(CL_INVALID_HOST_PTR);
-        wbOpenCL_ERROR(CL_INVALID_MEM_OBJECT);
-        wbOpenCL_ERROR(CL_INVALID_IMAGE_FORMAT_DESCRIPTOR);
-        wbOpenCL_ERROR(CL_INVALID_IMAGE_SIZE);
-        wbOpenCL_ERROR(CL_INVALID_SAMPLER);
-        wbOpenCL_ERROR(CL_INVALID_BINARY);
-        wbOpenCL_ERROR(CL_INVALID_BUILD_OPTIONS);
-        wbOpenCL_ERROR(CL_INVALID_PROGRAM);
-        wbOpenCL_ERROR(CL_INVALID_PROGRAM_EXECUTABLE);
-        wbOpenCL_ERROR(CL_INVALID_KERNEL_NAME);
-        wbOpenCL_ERROR(CL_INVALID_KERNEL_DEFINITION);
-        wbOpenCL_ERROR(CL_INVALID_KERNEL);
-        wbOpenCL_ERROR(CL_INVALID_ARG_INDEX);
-        wbOpenCL_ERROR(CL_INVALID_ARG_VALUE);
-        wbOpenCL_ERROR(CL_INVALID_ARG_SIZE);
-        wbOpenCL_ERROR(CL_INVALID_KERNEL_ARGS);
-        wbOpenCL_ERROR(CL_INVALID_WORK_DIMENSION);
-        wbOpenCL_ERROR(CL_INVALID_WORK_GROUP_SIZE);
-        wbOpenCL_ERROR(CL_INVALID_WORK_ITEM_SIZE);
-        wbOpenCL_ERROR(CL_INVALID_GLOBAL_OFFSET);
-        wbOpenCL_ERROR(CL_INVALID_EVENT_WAIT_LIST);
-        wbOpenCL_ERROR(CL_INVALID_EVENT);
-        wbOpenCL_ERROR(CL_INVALID_OPERATION);
-        wbOpenCL_ERROR(CL_INVALID_GL_OBJECT);
-        wbOpenCL_ERROR(CL_INVALID_BUFFER_SIZE);
-        wbOpenCL_ERROR(CL_INVALID_MIP_LEVEL);
-        wbOpenCL_ERROR(CL_INVALID_GLOBAL_WORK_SIZE);
-#endif
-#if defined(CL_VERSION_1_1)
-        wbOpenCL_ERROR(CL_INVALID_PROPERTY);
-#endif
-#if defined(CL_VERSION_1_2)
-        wbOpenCL_ERROR(CL_INVALID_IMAGE_DESCRIPTOR);
-        wbOpenCL_ERROR(CL_INVALID_COMPILER_OPTIONS);
-        wbOpenCL_ERROR(CL_INVALID_LINKER_OPTIONS);
-        wbOpenCL_ERROR(CL_INVALID_DEVICE_PARTITION_COUNT);
-#endif
-#if defined(CL_VERSION_2_0)
-        wbOpenCL_ERROR(CL_INVALID_PIPE_SIZE);
-        wbOpenCL_ERROR(CL_INVALID_DEVICE_QUEUE);
-#endif
-/*
- * OpenCL extension error values
- */
-#if defined(__OPENCL_CL_GL_H) && defined(cl_khr_gl_sharing)
-        wbOpenCL_ERROR(CL_INVALID_GL_SHAREGROUP_REFERENCE_KHR);
-#endif
-#if defined(__CL_EXT_H) && defined(cl_khr_icd)
-        wbOpenCL_ERROR(CL_PLATFORM_NOT_FOUND_KHR);
-#endif
-#if defined(__OPENCL_CL_D3D10_H)
-        wbOpenCL_ERROR(CL_INVALID_D3D10_DEVICE_KHR);
-        wbOpenCL_ERROR(CL_INVALID_D3D10_RESOURCE_KHR);
-        wbOpenCL_ERROR(CL_D3D10_RESOURCE_ALREADY_ACQUIRED_KHR);
-        wbOpenCL_ERROR(CL_D3D10_RESOURCE_NOT_ACQUIRED_KHR);
-#endif
-#if defined(__OPENCL_CL_D3D11_H)
-        wbOpenCL_ERROR(CL_INVALID_D3D11_DEVICE_KHR);
-        wbOpenCL_ERROR(CL_INVALID_D3D11_RESOURCE_KHR);
-        wbOpenCL_ERROR(CL_D3D11_RESOURCE_ALREADY_ACQUIRED_KHR);
-        wbOpenCL_ERROR(CL_D3D11_RESOURCE_NOT_ACQUIRED_KHR);
-#endif
-#if defined(__OPENCL_CL_DX9_MEDIA_SHARING_H)
-        wbOpenCL_ERROR(CL_INVALID_DX9_MEDIA_ADAPTER_KHR);
-        wbOpenCL_ERROR(CL_INVALID_DX9_MEDIA_SURFACE_KHR);
-        wbOpenCL_ERROR(CL_DX9_MEDIA_SURFACE_ALREADY_ACQUIRED_KHR);
-        wbOpenCL_ERROR(CL_DX9_MEDIA_SURFACE_NOT_ACQUIRED_KHR);
-#endif
-#if defined(__CL_EXT_H) && defined(cl_ext_device_fission)
-        wbOpenCL_ERROR(CL_DEVICE_PARTITION_FAILED_EXT);
-        wbOpenCL_ERROR(CL_INVALID_PARTITION_COUNT_EXT);
-        wbOpenCL_ERROR(CL_INVALID_PARTITION_NAME_EXT);
-#endif
-#if defined(__OPENCL_CL_EGL_H)
-        wbOpenCL_ERROR(CL_EGL_RESOURCE_NOT_ACQUIRED_KHR);
-        wbOpenCL_ERROR(CL_INVALID_EGL_OBJECT_KHR);
-#endif
-#if defined(__CL_EXT_H) && defined(cl_intel_accelerator)
-        wbOpenCL_ERROR(CL_INVALID_ACCELERATOR_INTEL);
-        wbOpenCL_ERROR(CL_INVALID_ACCELERATOR_TYPE_INTEL);
-        wbOpenCL_ERROR(CL_INVALID_ACCELERATOR_DESCRIPTOR_INTEL);
-        wbOpenCL_ERROR(CL_ACCELERATOR_TYPE_NOT_SUPPORTED_INTEL);
-#endif
-    // Undeclared OpenCL error (possibly implementation specific?)
-    default:
-        return "[Undeclared OpenCL error]";
-    }
-}
-#undef wbOpenCL_ERROR
-#endif
+//#include <cuda.h>
+//#include <cuda_runtime.h>
 
 ////
 // Logging
 ////
 
+enum wbLogLevel
+{
+    OFF,
+    FATAL,
+    ERROR,
+    WARN,
+    INFO,
+    DEBUG,
+    TRACE,
+    wbLogLevelNum, // Keep this at the end
+};
+
 namespace wbInternal
 {
-    enum wbLogLevel
-    {
-        wbLogLevel_OFF,
-        wbLogLevel_FATAL,
-        wbLogLevel_ERROR,
-        wbLogLevel_WARN,
-        wbLogLevel_INFO,
-        wbLogLevel_DEBUG,
-        wbLogLevel_TRACE,
-        wbLogLevel_INVALID // Keep this at the end
-    };
-
     const char* wbLogLevelStr[] =
     {
         "Off",
@@ -302,18 +52,18 @@ namespace wbInternal
         "Info",
         "Debug",
         "Trace",
-        "***InvalidLogLevel***" // Keep this at the end
+        "***InvalidLogLevel***", // Keep this at the end
     };
 
     const char* wbLogLevelToStr(const wbLogLevel level)
     {
-        wbAssert(level >= wbLogLevel_OFF && level < wbLogLevel_INVALID, "Unrecognized wbLogLevel value");
+        assert(level >= OFF && level <= TRACE);
         return wbLogLevelStr[level];
     }
 
 //-----------------------------------------------------------------------------
 // Begin: Ugly C++03 hack
-// NVCC 5.0 does not support C++11 variadic templates
+// NVCC does not support C++11 variadic template yet
 
     template<typename T1>
     inline void wbLog(T1 const& p1)
@@ -374,7 +124,7 @@ namespace wbInternal
     {
         std::cout << p1 << p2 << p3 << p4 << p5 << p6 << p7 << p8 << p9 << p10;
     }
-} // namespace wbInternal
+}
 
 // End: Ugly C++03 hack
 //-----------------------------------------------------------------------------
@@ -382,7 +132,7 @@ namespace wbInternal
 #define wbLog(level, ...)                                                                \
     do                                                                                   \
     {                                                                                    \
-        std::cout << wbInternal::wbLogLevelToStr(wbInternal::wbLogLevel_##level) << " "; \
+        std::cout << wbInternal::wbLogLevelToStr(static_cast<wbLogLevel>(level)) << " "; \
         std::cout << __FUNCTION__ << "::" << __LINE__ << " ";                            \
         wbInternal::wbLog(__VA_ARGS__);                                                  \
         std::cout << std::endl;                                                          \
@@ -406,311 +156,266 @@ wbArg_t wbArg_read(const int argc, char** argv)
 
 char* wbArg_getInputFile(const wbArg_t argInfo, const int argNum)
 {
-    wbAssert(argNum >= 0 && argNum < (argInfo.argc - 1), "Unrecognized command line argument requested");
+    assert(argNum >= 0 && argNum < (argInfo.argc - 1));
     return argInfo.argv[argNum + 1];
 }
 
-// For assignments MP1, MP4, MP5 & MP12
-unsigned int* wbImport(const char* fName, int* numElements)
+// For assignments MP1, MP4 & MP5
+float* wbImport(const char* fname, int* itemNum)
 {
-    std::ifstream inFile(fName);
+    // Open file
 
-    if (!inFile.is_open())
+    std::ifstream inFile(fname);
+
+    if (!inFile)
     {
-        std::cerr << "Error opening input file " << fName << ". " << wbInternal::wbStrerror(errno) << std::endl;
-        std::exit(EXIT_FAILURE);
+        std::cout << "Error opening input file: " << fname << " !\n";
+        exit(EXIT_FAILURE);
     }
 
-    inFile >> *numElements;
+    // Read from file
 
-    std::string sVal;
-    std::vector<unsigned int> fVec;
+    inFile >> *itemNum;
 
-    fVec.reserve(*numElements);
-
-    while (inFile >> sVal)
-    {
-        std::istringstream iss(sVal);
-        unsigned int fVal;
-        iss >> fVal;
-        fVec.push_back(fVal);
-    }
-
-    inFile.close();
-
-    if (*numElements != static_cast<int>(fVec.size()))
-    {
-        std::cerr << "Error reading contents of file " << fName << ". Expecting " << *numElements << " elements but got " << fVec.size() << std::endl;
-        std::exit(EXIT_FAILURE);
-    }
-
-    unsigned int* fBuf = (unsigned int*) malloc(*numElements * sizeof(unsigned int));
+    float* fBuf = (float*) malloc(*itemNum * sizeof(float));
 
     if (!fBuf)
     {
-        std::cerr << "Unable to allocate memory for an array of size " << *numElements * sizeof(unsigned int) << " bytes" << std::endl;
-        inFile.close();
-        std::exit(EXIT_FAILURE);
+        std::cout << "Unable to allocate memory for array of size " << *itemNum * sizeof(float) <<" bytes";
+        exit(EXIT_FAILURE);
     }
 
-    std::copy(fVec.begin(), fVec.end(), fBuf);
+    std::string sval;
+
+    for (int idx = 0; idx < *itemNum && inFile >> sval; ++idx)
+    {
+        std::istringstream iss(sval);
+        iss >> fBuf[idx];
+    }
 
     return fBuf;
 }
 
-namespace wbInternal
+//MP6
+float* parseCsv(const char* inputFile, int* numRows, int* numCols)
 {
-    // For assignment MP6
-    float* wbParseCSV(const char* fName, int* numRows, int* numCols)
-    {
-        std::ifstream inFile(fName);
-
-        if (!inFile.is_open())
-        {
-            std::cerr << "Error opening input file " << fName << ". " << wbInternal::wbStrerror(errno) << std::endl;
-            std::exit(EXIT_FAILURE);
-        }
-
-        std::vector<float> fVec;
+    std::ifstream fileInput;
+    std::vector<float>* cells = new std::vector<float>();
+    fileInput.open(inputFile);
+    if (fileInput.is_open()) {
         std::string rowStr;
-        *numRows = *numCols = 0;
-
-        while (std::getline(inFile, rowStr))
+        (*numRows) = 0;
+        while(getline(fileInput, rowStr, '\n'))
         {
-            std::istringstream rowStream(rowStr);
-            std::string cellStr;
-            ++(*numRows);
-            *numCols = 0;
-
-            while (std::getline(rowStream, cellStr, ','))
-            {
-                float fVal;
-                ++(*numCols);
-
-                if (!(std::istringstream(cellStr) >> fVal))
-                {
-                    std::cerr << "Error reading element (" << *numRows << ", " << *numCols << ") in file " << fName << std::endl;
-                    inFile.close();
-                    std::exit(EXIT_FAILURE);
-                }
-
-                fVec.push_back(fVal);
-            }
+           (*numRows)++;
+           std::istringstream rowStream(rowStr);
+           std::string cellStr;
+           (*numCols) = 0;
+           while(getline(rowStream, cellStr, ','))
+           {
+               (*numCols)++;
+               cells->push_back((float)atof(cellStr.c_str()));
+           }
         }
-
-        inFile.close();
-
-        const int numElements = *numRows * *numCols;
-
-        if ((*numRows != *numCols) || (0 == numElements))
-        {
-            std::cerr << "Error reading contents of file " << fName << ". Last element read (" << *numRows << ", " << *numCols << ")" << std::endl;
-            std::exit(EXIT_FAILURE);
-        }
-
-        float* fBuf = (float*) malloc(numElements * sizeof(float));
-
-        if (!fBuf)
-        {
-            std::cerr << "Unable to allocate memory for an array of size " << numElements * sizeof(float) << " bytes" << std::endl;
-            std::exit(EXIT_FAILURE);
-        }
-
-        std::copy(fVec.begin(), fVec.end(), fBuf);
-
-        return fBuf;
+    } else {
+        std::cout << "cannot open file " << inputFile;
+        exit(1);
     }
-} // namespace wbInternal
+    fileInput.close();
+    return &((*cells)[0]);
+}
 
-// For assignments MP2, MP3 & MP6
-float* wbImport(const char* fName, int* numRows, int* numCols)
+// For assignments MP2 & MP3
+float* wbImport(const char* fname, int* numRows, int* numCols)
 {
-    std::string fNameStr(fName);
+     //MP6 csv files
+     std::string fnameStr = fname;
+     if(fnameStr.substr(fnameStr.find_last_of(".") + 1) == "csv") {
+         return parseCsv(fname, numRows, numCols);
+     }
+    // Open file
 
-    if (fNameStr.substr(fNameStr.find_last_of(".") + 1) == "csv")
+    std::ifstream inFile(fname);
+
+    if (!inFile)
     {
-        return wbInternal::wbParseCSV(fName, numRows, numCols);
+        std::cout << "Error opening input file: " << fname << " !\n";
+        exit(EXIT_FAILURE);
     }
 
-    std::ifstream inFile(fName);
-
-    if (!inFile.is_open())
-    {
-        std::cerr << "Error opening input file " << fName << ". " << wbInternal::wbStrerror(errno) << std::endl;
-        std::exit(EXIT_FAILURE);
-    }
+    // Read in matrix dimensions
 
     inFile >> *numRows;
     inFile >> *numCols;
 
-    const int numElements = *numRows * *numCols;
-
-    std::string sVal;
+    std::string sval;
+    float fval;
     std::vector<float> fVec;
 
-    fVec.reserve(numElements);
+    // Read file to vector
 
-    while (inFile >> sVal)
+    while (inFile >> sval)
     {
-        std::istringstream iss(sVal);
-        float fVal;
-        iss >> fVal;
-        fVec.push_back(fVal);
+        std::istringstream iss(sval);
+        iss >> fval;
+        fVec.push_back(fval);
     }
 
-    inFile.close();
+    int itemNum = *numRows * *numCols;
 
-    if (numElements != static_cast<int>(fVec.size()))
+    if (static_cast<int>(fVec.size()) != itemNum)
     {
-        std::cerr << "Error reading contents of file " << fName << ". Expecting " << numElements << " elements but got " << fVec.size() << std::endl;
-        std::exit(EXIT_FAILURE);
+        std::cout << "Error reading matrix content for a " << *numRows << " * " << *numCols << "matrix!\n";
+        exit(EXIT_FAILURE);
     }
 
-    float* fBuf = (float*) malloc(numElements * sizeof(float));
+    // Vector to malloc memory
+
+    float* fBuf = (float*) malloc(itemNum * sizeof(float));
 
     if (!fBuf)
     {
-        std::cerr << "Unable to allocate memory for an array of size " << numElements * sizeof(float) << " bytes" << std::endl;
-        std::exit(EXIT_FAILURE);
+        std::cout << "Unable to allocate memory for array of size " << itemNum * sizeof(float) <<" bytes";
+        exit(EXIT_FAILURE);
     }
 
-    std::copy(fVec.begin(), fVec.end(), fBuf);
+    for (int i = 0; i < itemNum; ++i)
+    {
+        fBuf[i] = fVec[i];
+    }
 
     return fBuf;
 }
 
+//
+//
+//  For MP6
+//
+//
+
 struct wbImage_t
 {
-    int width;
-    int height;
-    int channels;
-    int colors;
-    float* data;
+    int  _imageWidth;
+    int  _imageHeight;
+    int  _imageChannels;
+    float* _data;
+    unsigned char* _rawData;
 
-    wbImage_t(int imageWidth = 0, int imageHeight = 0, int imageChannels = wbInternal::kImageChannels, int imageColors = wbInternal::kImageColorLimit) : width(imageWidth), height(imageHeight), channels(imageChannels), colors(imageColors), data(NULL)
+    wbImage_t(int imageWidth = 0, int imageHeight = 0, int imageChannels = 0) :_imageWidth(imageWidth), _imageHeight(imageHeight), _imageChannels(imageChannels)
     {
-        const int numElements = width * height * channels;
-
-        // Prevent zero-length memory allocation
-        if (numElements > 0)
-            data = new float[numElements];
+        int dataSize = _imageWidth * _imageHeight * _imageChannels;
+        _data = new float[dataSize];
+	_rawData = new unsigned char[dataSize];
     }
 };
 
-// For assignments MP6 & MP11
-wbImage_t wbImport(const char* fName)
+
+wbImage_t wbImport(const char* inputFile)
 {
-    std::ifstream inFile(fName, std::ios::binary);
-
-    if (!inFile.is_open())
-    {
-        std::cerr << "Error opening image file " << fName << ". " << wbInternal::wbStrerror(errno) << std::endl;
-        std::exit(EXIT_FAILURE);
-    }
-
-    // Read PPM image header
-    std::string magic;
-    std::getline(inFile, magic);
-
-    if (magic != "P6")
-    {
-        std::cerr << "Error reading image file " << fName << ". " << "Expecting 'P6' image format but got '" << magic << "'" << std::endl;
-        inFile.close();
-        std::exit(EXIT_FAILURE);
-    }
-
-    // Filter image comments
-    if (inFile.peek() == '#')
-    {
-        std::string commentStr;
-        std::getline(inFile, commentStr);
-    }
-
     wbImage_t image;
+    image._imageChannels = 3;
 
-    inFile >> image.width;
+    std::ifstream fileInput;
+    fileInput.open(inputFile, std::ios::binary);
+    if (fileInput.is_open()) {
+        char magic[2];
+        fileInput.read(magic, 2);
+        if (magic[0] != 'P' || magic[1] !='6') {
+            std::cout << "expected 'P6' but got " << magic[0] << magic[1] << std::endl;
+            exit(1);
+        }
+        char tmp = fileInput.peek();
+        while (isspace(tmp)) {
+            fileInput.read(&tmp, 1);
+            tmp = fileInput.peek();
+        }
+        // filter image comments
+        if (tmp == '#') {
+            fileInput.read(&tmp, 1);
+            tmp = fileInput.peek();
+            while (tmp != '\n') {
+                fileInput.read(&tmp, 1);
+                tmp = fileInput.peek();
+            }
+        }
+        // get rid of whitespaces
+        while (isspace(tmp)) {
+            fileInput.read(&tmp, 1);
+            tmp = fileInput.peek();
+        }
 
-    if (inFile.fail() || 0 >= image.width)
-    {
-        std::cerr << "Error reading width of image in file " << fName << std::endl;
-        inFile.close();
-        std::exit(EXIT_FAILURE);
+        //read dimensions (TODO add error checking)
+        char widthStr[64], heightStr[64], numColorsStr[64], *p;
+        p = widthStr;
+        if(isdigit(tmp)) {
+            while(isdigit(*p = fileInput.get())) {
+                p++;
+            }
+            *p = '\0';
+            image._imageWidth = atoi(widthStr);
+            std::cout << "Width: " << image._imageWidth << std::endl;
+            p = heightStr;
+            while(isdigit(*p = fileInput.get())) {
+                p++;
+            }
+            *p = '\0';
+            image._imageHeight = atoi(heightStr);
+            std::cout << "Height: " << image._imageHeight << std::endl;
+            p = numColorsStr;
+	    //fileInput.get();
+            while(isdigit(*p = fileInput.get())) {
+                p++;
+            }
+            *p = '\0';
+	    std::cout<<numColorsStr<<std::endl;
+            int numColors = atoi(numColorsStr);
+            std::cout << "Num colors: " << numColors << std::endl;
+            if (numColors != 255) {
+                std::cout << "the number of colors should be 255, but got " << numColors << std::endl;
+                //exit(1);
+            }
+        } else  {
+            std::cout << "error - cannot read dimensions" << std::endl;
+        }
+
+        int dataSize = image._imageWidth*image._imageHeight*image._imageChannels;
+        unsigned char* data = new unsigned char[dataSize];
+        fileInput.read((char*)data, dataSize);
+        float* floatData = new float[dataSize];
+        for (int i = 0; i < dataSize; i++) {
+            floatData[i] = (float)(1.0*data[i]/255.0f);
+        }
+        image._rawData = data;
+        image._data = floatData;
+        fileInput.close();
+    } else  {
+         std::cout << "cannot open file " << inputFile;
+         exit(1);
     }
-
-    inFile >> image.height;
-
-    if (inFile.fail() || 0 >= image.height)
-    {
-        std::cerr << "Error reading height of image in file " << fName << std::endl;
-        inFile.close();
-        std::exit(EXIT_FAILURE);
-    }
-
-    inFile >> image.colors;
-
-    if (inFile.fail() || image.colors != wbInternal::kImageColorLimit)
-    {
-        std::cerr << "Error reading colors value of image in file " << fName << std::endl;
-        inFile.close();
-        std::exit(EXIT_FAILURE);
-    }
-
-    while (isspace(inFile.peek()))
-    {
-        inFile.get();
-    }
-
-    const int numElements = image.width * image.height * image.channels;
-
-    unsigned char* rawData = new unsigned char[numElements];
-
-    inFile.read(reinterpret_cast<char*>(rawData), numElements);
-
-    const int elementsRead = static_cast<int>(inFile.gcount());
-
-    inFile.close();
-
-    if (elementsRead != numElements)
-    {
-        std::cerr << "Size of image in file " << fName << " does not match its header. Expecting " << numElements << " bytes, but got " << elementsRead << std::endl;
-        delete [] rawData;
-        std::exit(EXIT_FAILURE);
-    }
-
-    float* data = new float[numElements];
-
-    for (int i = 0; i < numElements; ++i)
-    {
-        data[i] = rawData[i] * (1.0f / wbInternal::kImageColorLimit);
-    }
-
-    image.data = data;
-    delete [] rawData;
-
     return image;
 }
 
 int wbImage_getWidth(const wbImage_t& image)
 {
-    return image.width;
+    return image._imageWidth;
 }
 
 int wbImage_getHeight(const wbImage_t& image)
 {
-    return image.height;
+    return image._imageHeight;
 }
 
 int wbImage_getChannels(const wbImage_t& image)
 {
-    return image.channels;
+    return image._imageChannels;
 }
 
 float* wbImage_getData(const wbImage_t& image)
 {
-     return image.data;
+     return image._data;
 }
 
-wbImage_t wbImage_new(const int imageWidth, const int imageHeight, const int imageChannels)
+wbImage_t wbImage_new(int imageWidth, int imageHeight, int imageChannels)
 {
     wbImage_t image(imageWidth, imageHeight, imageChannels);
     return image;
@@ -718,27 +423,93 @@ wbImage_t wbImage_new(const int imageWidth, const int imageHeight, const int ima
 
 void wbImage_delete(wbImage_t& image)
 {
-    delete [] image.data;
+    delete[] image._data;
+    delete[] image._rawData;
 }
+
+void wbImage_save(wbImage_t& image, const char outputfile[]) {
+    std::ofstream outputFile(outputfile, std::ios::binary);
+    char buffer[64];
+    std::string magic = "P6\n";
+    outputFile.write(magic.c_str(), magic.size());
+    std::string comment  =  "# image generated by applying convolution\n";
+    outputFile.write(comment.c_str(), comment.size());
+    //write dimensions
+    sprintf(buffer,"%d", image._imageWidth);
+    outputFile.write(buffer, strlen(buffer));
+    buffer[0] = ' ';
+    outputFile.write(buffer, 1);
+    sprintf(buffer,"%d", image._imageHeight);
+    outputFile.write(buffer, strlen(buffer));
+    buffer[0] = '\n';
+    outputFile.write(buffer, 1);
+    std::string colors = "255\n";
+    outputFile.write(colors.c_str(), colors.size());
+
+    int dataSize = image._imageWidth*image._imageHeight*image._imageChannels;
+    unsigned char* rgbData = new unsigned char[dataSize];
+    for (int i = 0; i < dataSize; i++) {
+        rgbData[i] =  (unsigned char)ceil(image._data[i] * 255);
+    }
+    outputFile.write((char*)rgbData, dataSize);
+    delete[] rgbData;
+    outputFile.close();
+}
+
+void wbSolution(wbArg_t arg, wbImage_t image) {
+    const char buf[] = "convoluted.ppm";
+    wbImage_save(image, buf);
+    char* solutionFile = wbArg_getInputFile(arg, arg.argc - 2);
+    wbImage_t solutionImage = wbImport(solutionFile);
+    if (image._imageWidth != solutionImage._imageWidth) {
+        std::cout << "width is incorrect: expected " << solutionImage._imageWidth << " but got " << image._imageWidth << std::endl;
+        exit(1);
+    }
+    if (image._imageHeight != solutionImage._imageHeight) {
+       std::cout << "height is incorrect: expected " << solutionImage._imageHeight << " but got " << image._imageHeight << std::endl;
+       exit(1);
+    }
+    int channels = 3;
+    for (int i = 0; i < image._imageWidth; ++i)
+        for (int j = 0; j < image._imageHeight; ++j)
+            for (int k = 0; k < 3; ++k) {
+                int index = ( j*image._imageWidth + i )*channels + k;
+
+		 double scaled = ((double)image._data[index])*255.0f;
+		 double decimalPart = scaled - floor(scaled);
+		 //if true, don't know how to round, too close to xxx.5
+		 bool ambiguous = fabs(decimalPart - 0.5) < 0.0001;
+
+		 int colorValue = int(((double)image._data[index])*255.0f +0.5);
+		 double error = abs(colorValue - solutionImage._rawData[index]);
+		 if (!(error == 0) && !(ambiguous && error <= 1) ) {
+                    std::cout << "data in position [" << i << " " << j << " " << k << "]  (array index: " << index << ") is wrong, expected " <<  (int)solutionImage._rawData[index] << " but got " << colorValue << "  (float value is " << image._data[index] << ")" <<std::endl;
+		     std::cout << "decimalPart: " << decimalPart << ", ambiguous: " << ambiguous << std::endl;
+
+                }
+            }
+    std::cout << "Solution is correct!" << std::endl;
+}
+
+//
+//
+//  MP6 End
+//
+//
+
 
 ////
 // Timer
 ////
 
-#if defined(__CUDACC__)
-    #define wbTimerDeviceSynchronize() cudaDeviceSynchronize()
-#else
-    #define wbTimerDeviceSynchronize()
-#endif
-
 // Namespace because Windows.h causes errors
 namespace wbInternal
 {
-#if defined(_WIN32)
+#if defined (_WIN32)
     #include <Windows.h>
 
-    // wbTimer class adapted from: https://bitbucket.org/ashwin/cudatimer
-    class wbTimer
+    // CudaTimer class from: https://bitbucket.org/ashwin/cudatimer
+    class CudaTimer
     {
     private:
         double        timerResolution;
@@ -746,34 +517,37 @@ namespace wbInternal
         LARGE_INTEGER endTime;
 
     public:
-        wbTimer::wbTimer()
+        CudaTimer::CudaTimer()
         {
             LARGE_INTEGER freq;
             QueryPerformanceFrequency(&freq);
             timerResolution = 1.0 / freq.QuadPart;
+            return;
         }
 
         void start()
         {
-            wbTimerDeviceSynchronize();
+            //hipDeviceSynchronize();
             QueryPerformanceCounter(&startTime);
+            return;
         }
 
         void stop()
         {
-            wbTimerDeviceSynchronize();
+            //hipDeviceSynchronize();
             QueryPerformanceCounter(&endTime);
+            return;
         }
 
         double value()
         {
-            return (endTime.QuadPart - startTime.QuadPart) * timerResolution;
+            return (endTime.QuadPart - startTime.QuadPart) * timerResolution * 1000;
         }
     };
-#elif defined(__APPLE__)
+#elif defined (__APPLE__)
     #include <mach/mach_time.h>
 
-    class wbTimer
+    class CudaTimer
     {
     private:
         uint64_t startTime;
@@ -782,13 +556,13 @@ namespace wbInternal
     public:
         void start()
         {
-            wbTimerDeviceSynchronize();
+            //hipDeviceSynchronize();
             startTime = mach_absolute_time();
         }
 
         void stop()
         {
-            wbTimerDeviceSynchronize();
+            //hipDeviceSynchronize();
             endTime = mach_absolute_time();
         }
 
@@ -799,74 +573,69 @@ namespace wbInternal
             if (0 == tb.denom)
                 (void) mach_timebase_info(&tb); // Calculate ratio of mach_absolute_time ticks to nanoseconds
 
-            return ((double) endTime - startTime) * (tb.numer / tb.denom) / NSEC_PER_SEC;
+            return ((double) endTime - startTime) * (tb.numer / tb.denom) / 1000000000ULL;
         }
     };
 #else
     #if defined(_POSIX_TIMERS) && _POSIX_TIMERS > 0
-        #include <time.h>
+        #include<time.h>
     #else
-        #include <sys/time.h>
+        #include<sys/time.h>
     #endif
 
-    #if !defined(NSEC_PER_SEC)
-        #define NSEC_PER_SEC 1e9L
-    #endif
-    #if !defined(MSEC_PER_NSEC)
-        #define MSEC_PER_NSEC (NSEC_PER_SEC / CLOCKS_PER_SEC)
-    #endif
-
-    class wbTimer
+    class CudaTimer
     {
     private:
-        long startTime;
-        long endTime;
+        long long startTime;
+        long long endTime;
 
-        long getTime()
+        long long getTime()
         {
-            long time;
+            long long time;
         #if defined(_POSIX_TIMERS) && _POSIX_TIMERS > 0
+
             struct timespec ts;
 
-            if (0 == clock_gettime(CLOCK_MONOTONIC, &ts))
+            if ( 0 == clock_gettime(CLOCK_REALTIME, &ts) )
             {
-                time  = NSEC_PER_SEC;
+                time  = 1000000000LL; // seconds->nanonseconds
                 time *= ts.tv_sec;
                 time += ts.tv_nsec;
             }
         #else
             struct timeval tv;
 
-            if (0 == gettimeofday(&tv, NULL))
+            if ( 0 == gettimeofday(&tv, NULL) )
             {
-                time  = NSEC_PER_SEC;
+                time  = 1000000000LL; // seconds->nanonseconds
                 time *= tv.tv_sec;
-                time += tv.tv_usec * MSEC_PER_NSEC;
+                time += tv.tv_usec * 1000; // ms->ns
             }
         #endif
+
             return time;
         }
 
     public:
         void start()
         {
-            wbTimerDeviceSynchronize();
+            //hipDeviceSynchronize();
             startTime = getTime();
         }
 
         void stop()
         {
-            wbTimerDeviceSynchronize();
+            //hipDeviceSynchronize();
             endTime = getTime();
         }
 
         double value()
         {
-            return ((double) endTime - startTime) / NSEC_PER_SEC;
+            return ((double) endTime - startTime) / 1000000000LL;
         }
     };
 #endif
-} // namespace wbInternal
+}
 
 enum wbTimeType
 {
@@ -874,7 +643,7 @@ enum wbTimeType
     GPU,
     Compute,
     Copy,
-    wbTimeTypeINVALID // Keep this at the end
+    wbTimeTypeNum, // Keep this at the end
 };
 
 namespace wbInternal
@@ -895,9 +664,9 @@ namespace wbInternal
 
     struct wbTimerInfo
     {
-        wbTimeType  type;
-        std::string message;
-        wbTimer     timer;
+        wbTimeType            type;
+        std::string           message;
+        wbInternal::CudaTimer timer;
 
         bool operator==(const wbTimerInfo& t2) const
         {
@@ -905,33 +674,38 @@ namespace wbInternal
         }
     };
 
-    typedef std::list<wbTimerInfo> wbTimerInfoList;
-
-    wbTimerInfoList timerInfoList;
-} // namespace wbInternal
+        typedef std::list<wbTimerInfo> wbTimerInfoList;
+        wbTimerInfoList timerInfoList;
+}
 
 void wbTime_start(const wbTimeType timeType, const std::string timeMessage)
 {
-    wbAssert(timeType >= Generic && timeType < wbTimeTypeINVALID, "Unrecognized wbTimeType value");
+    assert(timeType >= Generic && timeType < wbTimeTypeNum);
 
-    wbInternal::wbTimer timer;
+    wbInternal::CudaTimer timer;
     timer.start();
 
     wbInternal::wbTimerInfo timerInfo = { timeType, timeMessage, timer };
 
     wbInternal::timerInfoList.push_front(timerInfo);
+
+    return;
 }
 
 void wbTime_stop(const wbTimeType timeType, const std::string timeMessage)
 {
-    wbAssert(timeType >= Generic && timeType < wbTimeTypeINVALID, "Unrecognized wbTimeType value");
+    assert(timeType >= Generic && timeType < wbTimeTypeNum);
 
-    const wbInternal::wbTimerInfo searchInfo = { timeType, timeMessage, wbInternal::wbTimer() };
-    const wbInternal::wbTimerInfoList::iterator iter = std::find(wbInternal::timerInfoList.begin(), wbInternal::timerInfoList.end(), searchInfo);
+    // Find timer
+
+    const wbInternal::wbTimerInfo searchInfo = { timeType, timeMessage };
+    const wbInternal::wbTimerInfoList::iterator iter = std::find( wbInternal::timerInfoList.begin(), wbInternal::timerInfoList.end(), searchInfo );
 
     wbInternal::wbTimerInfo& timerInfo = *iter;
 
-    wbAssert(searchInfo == timerInfo, "Could not find a corresponding wbTimerInfo struct registered by wbTime_start()");
+    assert(searchInfo == timerInfo);
+
+    // Stop timer and print time
 
     timerInfo.timer.stop();
 
@@ -939,7 +713,11 @@ void wbTime_stop(const wbTimeType timeType, const std::string timeMessage)
     std::cout << std::fixed << std::setprecision(9) << timerInfo.timer.value() << " ";
     std::cout << timerInfo.message << std::endl;
 
+    // Delete timer from list
+
     wbInternal::timerInfoList.erase(iter);
+
+    return;
 }
 
 ////
@@ -953,42 +731,37 @@ namespace wbInternal
         // Note that the tolerance level, e, is still an arbitrarily chosen value. Ideally, this value should scale
         // std::numeric_limits<float>::epsilon() by the number of rounding operations
         const float e = 0.0005f;
-
         // For floating point values u and v with tolerance e:
         //   |u - v| / |u| <= e || |u - v| / |v| <= e
         // defines a 'close enough' relationship between u and v that scales for magnitude
         // See Knuth, Seminumerical Algorithms 3e, s. 4.2.4, pp. 213-225
         return ((fabs(u - v) / fabs(u == 0.0f ? 1.0f : u) <= e) || (fabs(u - v) / fabs(v == 0.0f ? 1.0f : v) <= e));
     }
-} // namespace wbInternal
+}
 
-// For assignments MP1, MP4, MP5 & MP12
+// For assignments MP1, MP4 & MP5
 template < typename T, typename S >
 void wbSolution(const wbArg_t args, const T& t, const S& s)
 {
     int solnItems;
-    unsigned int* soln = wbImport(wbArg_getInputFile(args, args.argc - 2), &solnItems);
+    float *soln = (float *) wbImport(wbArg_getInputFile(args, args.argc - 2), &solnItems);
 
     if (solnItems != s)
     {
-        std::cout << "Number of elements in solution file " << wbArg_getInputFile(args, args.argc - 2) << " does not match. ";
+        std::cout << "Number of elements in solution file does not match. ";
         std::cout << "Expecting " << s << " but got " << solnItems << ".\n";
     }
     else // Check solution
     {
         int errCnt = 0;
 
-        for (int item = 0; item < solnItems; ++item)
+        for (int item = 0; item < solnItems; item++)
         {
             if (!wbInternal::wbFPCloseEnough(soln[item], t[item]))
             {
-                if (errCnt < wbInternal::kErrorReportLimit)
-                {
-                    std::cout << "The solution did not match the expected result at element " << item << ". ";
-                    std::cout << "Expecting " << soln[item] << " but got " << t[item] << ".\n";
-                }
-
-                ++errCnt;
+                std::cout << "The solution did not match the expected result at element " << item << ". ";
+                std::cout << "Expecting " << soln[item] << " but got " << t[item] << ".\n";
+                errCnt++;
             }
         }
 
@@ -999,40 +772,38 @@ void wbSolution(const wbArg_t args, const T& t, const S& s)
     }
 
     free(soln);
+
+    return;
 }
 
 // For assignments MP2 & MP3
 template < typename T, typename S, typename U >
-void wbSolution(const wbArg_t& args, const T& t, const S& s, const U& u)
+void wbSolution(const wbArg_t args, const T& t, const S& s, const U& u)
 {
     int solnRows, solnColumns;
-    float* soln = wbImport(wbArg_getInputFile(args, args.argc - 2), &solnRows, &solnColumns);
+    float *soln = (float *) wbImport(wbArg_getInputFile(args, 2), &solnRows, &solnColumns);
 
     if (solnRows != s || solnColumns != u)
     {
-        std::cout << "Size of the matrix in solution file " << wbArg_getInputFile(args, args.argc - 2) << " does not match. ";
+        std::cout << "Size of solution file does not match. ";
         std::cout << "Expecting " << solnRows << " x " << solnColumns << " but got " << s << " x " << u << ".\n";
     }
     else // Check solution
     {
         int errCnt = 0;
 
-        for (int row = 0; row < solnRows; ++row)
+        for (int row = 0; row < solnRows; row++)
         {
-            for (int col = 0; col < solnColumns; ++col)
+            for (int col = 0; col < solnColumns; col++)
             {
-                const float expected = row * solnColumns + col + *soln;
-                const float result   = row * solnColumns + col + *t;
+                float expected = *(soln + row * solnColumns + col);
+                float result = *(t + row * solnColumns + col);
 
                 if (!wbInternal::wbFPCloseEnough(expected, result))
                 {
-                    if (errCnt < wbInternal::kErrorReportLimit)
-                    {
-                        std::cout << "The solution did not match the expected results at column " << col << " and row " << row << "). ";
-                        std::cout << "Expecting " << expected << " but got " << result << ".\n";
-                    }
-
-                    ++errCnt;
+                    std::cout << "The solution did not match the expected results at column " << col << " and row " << row << "). ";
+                    std::cout << "Expecting " << expected << " but got " << result << ".\n";
+                    errCnt++;
                 }
             }
         }
@@ -1044,78 +815,6 @@ void wbSolution(const wbArg_t& args, const T& t, const S& s, const U& u)
     }
 
     free(soln);
-}
 
-namespace wbInternal
-{
-    // For assignments MP6 & MP11
-    void wbImage_save(const wbImage_t& image, const wbArg_t& args, const char* fName)
-    {
-        std::ostringstream oss;
-        oss << "P6\n" << "# Created by applying convolution " << wbArg_getInputFile(args, args.argc - 3) << "\n" << image.width << " " << image.height << "\n" << image.colors << "\n";
-        std::string headerStr(oss.str());
-
-        std::ofstream outFile(fName, std::ios::binary);
-        outFile.write(headerStr.c_str(), headerStr.size());
-
-        const int numElements = image.width * image.height * image.channels;
-
-        unsigned char* rawData = new unsigned char[numElements];
-
-        for (int i = 0; i < numElements; ++i)
-        {
-            rawData[i] = static_cast<unsigned char>(image.data[i] * wbInternal::kImageColorLimit + 0.5f);
-        }
-
-        outFile.write(reinterpret_cast<char*>(rawData), numElements);
-        outFile.close();
-
-        delete [] rawData;
-    }
-} // namespace wbInternal
-
-// For assignment MP6 & MP11
-void wbSolution(const wbArg_t& args, const wbImage_t& image)
-{
-    wbImage_t solnImage = wbImport(wbArg_getInputFile(args, args.argc - 2));
-
-    if (solnImage.width != image.width || solnImage.height != image.height)
-    {
-        std::cout << "Size of the image in file " << wbArg_getInputFile(args, args.argc - 2) << " does not match. ";
-        std::cout << "Expecting " << image.width << " x " << image.height << " but got " << solnImage.width << " x " << solnImage.height << ".\n";
-    }
-    else // Check solution
-    {
-        wbInternal::wbImage_save(image, args, "transformed_image.ppm");
-
-        const float tolerance = 1.5f;
-        int errCnt = 0;
-
-        for (int i = 0; i < image.width; ++i)
-        {
-            for (int j = 0; j < image.height; ++j)
-            {
-                for (int k = 0; k < image.channels; ++k)
-                {
-                    const int index = (j * image.width + i) * image.channels + k;
-                    const float error = fabs(solnImage.data[index] - image.data[index]);
-
-                    if (error > (1.0f / wbInternal::kImageColorLimit * tolerance))
-                    {
-                        if (errCnt < wbInternal::kErrorReportLimit)
-                            std::cout << "Image pixels do not match at position (" << j << ", " << i << ", " << k << "). [" << image.data[index] << ", " <<  solnImage.data[index] << "]\n";
-
-                        ++errCnt;
-                    }
-                }
-            }
-        }
-
-        if (!errCnt)
-            std::cout << "Solution is correct." << std::endl;
-        else
-            std::cout << errCnt << " tests failed!" << std::endl;
-    }
-
-    wbImage_delete(solnImage);
+    return;
 }
