@@ -2,6 +2,7 @@
 #include <stdio.h>
 
 long num_steps = 1000000;
+double t1; // time requied for serial execution
 
 double serialExecTime()
 {
@@ -20,9 +21,10 @@ double serialExecTime()
     }
     pi = step * sum;
 
+    double ans = omp_get_wtime() - start;
     printf("Pi = %lf\n", pi);
 
-    return omp_get_wtime() - start;
+    return ans;
 }
 
 float partial_sum_calculate(int i, double step)
@@ -34,14 +36,14 @@ float partial_sum_calculate(int i, double step)
     return sum;
 }
 
-double parallelExecTime()
+double parallelExecTime(int numThreads)
 {
     float Sum;
     double step = 1.0 / (double)num_steps;
+    int nthrds;
+    omp_set_num_threads(numThreads);
 
     double start = omp_get_wtime();
-    int nthrds;
-    omp_set_num_threads(2);
 
 #pragma omp parallel
     {
@@ -59,16 +61,22 @@ double parallelExecTime()
         }
     }
 
-    printf("Number of Threads: %d\nPi = %lf\n", nthrds, Sum * step);
+    double ans = omp_get_wtime() - start;
+    
+    printf("Number of Threads: %d\tTime = %lf\tPi = %lf\n", nthrds, ans, Sum * step);
 
-    return omp_get_wtime() - start;
+    return ans;
 }
 
 int main()
 {
-    printf("Time taken for Uni-Processor execution: %lf seconds\n", serialExecTime());
+    t1 = serialExecTime();
 
-    printf("Time taken for Multi-Processor execution: %lf seconds\n", parallelExecTime());
+    printf("Time taken for Uni-Processor execution: %lf seconds\n", t1);
+    int i;
+    printf("Max number of threads: %d\n", omp_get_max_threads());
+    for (i = 2; i < omp_get_max_threads(); ++i)
+        parallelExecTime(i);
 
     return 0;
 }
