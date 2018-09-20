@@ -20,9 +20,12 @@ double serialExecTime()
     }
     pi = step * sum;
 
-    printf("Pi = %lf\n", pi);
 
-    return omp_get_wtime() - start;
+    printf("Serial Execution Results: Pi = %lf\n", pi);
+
+    double ans = omp_get_wtime() - start;
+
+    return ans;
 }
 
 float partial_sum_calculate(int i, double step)
@@ -54,9 +57,11 @@ double parallelExecTime()
     nthrds = omp_get_num_threads();
     
 
-    printf("Number of Threads: %d\nPi = %lf\n", nthrds, Sum * step);
+    //printf("Number of Threads: %d\nPi = %lf\n", nthrds, Sum * step);
     // printf("Total number of threads used: %d\n", nthrds);
-    return omp_get_wtime() - start;
+    double ans = omp_get_wtime() - start;
+    printf("Multi-threaded Result: Pi = %lf\n", Sum * step);
+    return ans;
 }
 
 int main()
